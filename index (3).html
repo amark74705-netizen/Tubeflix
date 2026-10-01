@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Videyo Web App</title>
+  
+  <!-- PWA / Mobile App Compatibility -->
+  <meta name="theme-color" content="#ea580c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Videyo">
+
+  <!-- Manifest Data Inline -->
+  <link rel="manifest" id="pwaManifest">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <style>
+    .shorts-container {
+      scroll-snap-type: y mandatory;
+      overflow-y: scroll;
+      height: calc(100vh - 60px);
+    }
+    .short-card {
+      scroll-snap-align: start;
+      height: calc(100vh - 60px);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans pb-16">
+
+  <!-- ==================== AUTH / LOGIN SCREEN ==================== -->
+  <div id="authScreen" class="fixed inset-0 bg-white z-50 flex flex-col justify-center items-center p-6">
+    <div class="w-full max-w-sm bg-amber-50/70 border border-orange-200 p-6 rounded-3xl shadow-xl text-center">
+      <h2 class="text-2xl font-bold text-orange-600 mb-1" id="lblLoginTitle">Videyo Login</h2>
+      <p class="text-xs text-gray-500 mb-5" id="lblLoginSub">Naam, Password aur Gallery Photo se login karein</p>
+      
+      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-3">
+        <input type="text" id="loginName" placeholder="Aapka Naam" required class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+        <input type="password" id="loginPassword" placeholder="Password" required class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+        
+        <!-- GALLERY PHOTO SELECTOR -->
+        <div class="text-left">
+          <label class="block text-[11px] font-bold text-gray-600 mb-1" id="lblSelectDp">Gallery se Profile Photo chunein:</label>
+          <input type="file" id="loginDpFile" accept="image/*" onchange="handleDpUpload(event)" class="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-orange-100 file:text-orange-700 hover:file:bg-orange-200">
+        </div>
+
+        <button type="submit" id="btnAuthSubmit" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl transition shadow-md text-sm">
+          Login / Sign Up
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== TOP HEADER ==================== -->
+  <header class="bg-orange-600 text-white px-4 py-3 flex justify-between items-center shadow-md sticky top-0 z-40 max-w-md mx-auto">
+    <h1 class="text-xl font-bold tracking-wide">Videyo</h1>
+    
+    <div class="flex items-center space-x-2 text-xs font-semibold">
+      <!-- LANGUAGE SELECTOR DROPDOWN -->
+      <select id="langSelect" onchange="changeLanguage(this.value)" class="bg-orange-700 text-white font-bold px-2 py-1 rounded-lg text-xs outline-none border border-orange-500 cursor-pointer">
+        <option value="hi">🇮🇳 हिंदी</option>
+        <option value="en">🇬🇧 English</option>
+      </select>
+
+      <!-- INSTALL APP BUTTON -->
+      <button id="installAppBtn" onclick="installPwaApp()" class="hidden bg-white text-orange-600 font-bold px-2 py-1 rounded-full shadow flex items-center gap-1 active:scale-95 transition text-[11px]">
+        <span class="material-icons-outlined text-sm">get_app</span>
+        <span id="lblInstallBtn">Install App</span>
+      </button>
+
+      <span class="bg-orange-700 px-2 py-0.5 rounded-full">5G</span>
+      <span class="material-icons-outlined text-sm">battery_full</span>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN CONTENT CONTAINER ==================== -->
+  <main id="mainContent" class="max-w-md mx-auto min-h-screen bg-white shadow-md">
+
+    <!-- 1. HOME PAGE -->
+    <section id="pageHome" class="p-4 space-y-4">
+      <div class="flex items-center bg-gray-100 border border-gray-200 rounded-full px-4 py-2 shadow-inner">
+        <span class="material-icons-outlined text-gray-400 mr-2">search</span>
+        <input type="text" id="homeSearchInput" onkeyup="filterHomeVideos()" placeholder="naam se video khojein..." class="w-full bg-transparent text-sm focus:outline-none">
+      </div>
+
+      <div class="flex justify-between items-center">
+        <h2 class="font-bold text-gray-800 text-sm" id="lblHomeFeedTitle">Home Feed (Long & Live)</h2>
+        <button onclick="navigateTo('channels')" id="btnSearchChannels" class="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">👥 channel khojein</button>
+      </div>
+
+      <div id="homeVideoList" class="space-y-4"></div>
+    </section>
+
+    <!-- 2. SHORTS PAGE (GRID) -->
+    <section id="pageShorts" class="p-4 space-y-4 hidden">
+      <div class="flex items-center bg-gray-100 border border-gray-200 rounded-full px-4 py-2 shadow-inner">
+        <span class="material-icons-outlined text-gray-400 mr-2">search</span>
+        <input type="text" id="shortsSearchInput" onkeyup="filterShortsGrid()" placeholder="Shorts search karein..." class="w-full bg-transparent text-sm focus:outline-none">
+      </div>
+
+      <div id="shortsGridList" class="grid grid-cols-2 gap-3"></div>
+    </section>
+
+    <!-- 3. FULLSCREEN SHORTS PLAYER -->
+    <section id="pageShortsPlayer" class="fixed inset-0 bg-black z-40 hidden">
+      <button onclick="closeShortsPlayer()" class="absolute top-4 left-4 z-50 bg-black/50 text-white rounded-full p-2 border border-white/20">
+        <span class="material-icons-outlined">arrow_back</span>
+      </button>
+      <div id="shortsScrollFeed" class="shorts-container bg-black"></div>
+    </section>
+
+    <!-- 4. CHANNEL SEARCH PAGE -->
+    <section id="pageChannelSearch" class="p-4 space-y-4 hidden">
+      <div class="flex items-center bg-gray-100 border border-gray-200 rounded-full px-4 py-2 shadow-inner">
+        <span class="material-icons-outlined text-gray-400 mr-2">search</span>
+        <input type="text" id="channelSearchInput" onkeyup="searchChannels()" placeholder="Channel naam ya handle se khojein..." class="w-full bg-transparent text-sm focus:outline-none">
+      </div>
+
+      <div id="channelsListContainer" class="space-y-3"></div>
+    </section>
+
+    <!-- 5. CHANNEL PROFILE VIEW PAGE -->
+    <section id="pageChannelProfile" class="p-4 space-y-4 hidden">
+      <button onclick="navigateTo('channels')" class="text-xs font-bold text-gray-600 flex items-center gap-1 mb-2">
+        <span class="material-icons-outlined text-sm">arrow_back</span> <span id="lblBack">wapas</span>
+      </button>
+
+      <div class="p-2 text-left space-y-2">
+        <div class="w-20 h-20 rounded-full bg-red-100 text-gray-700 border border-red-200 flex items-center justify-center text-3xl font-normal overflow-hidden">
+          <img id="profileDpImg" src="" alt="DP" class="w-full h-full object-cover hidden">
+          <span id="profileDpInitials"></span>
+        </div>
+        <h2 id="profileNameText" class="text-xl font-bold text-gray-900"></h2>
+        <p id="profileHandleText" class="text-xs text-gray-500"></p>
+        
+        <div class="flex items-center space-x-3 text-xs text-gray-600 pt-1">
+          <span>👥 <span id="profileSubCount">0</span> <span id="lblSubscribers">subscribers</span></span>
+          <span>👁 <span id="profileTotalViews">0</span> <span id="lblTotalViews">total views</span></span>
+          <span>📹 <span id="profileVideoCount">0</span> <span id="lblVideos">videos</span></span>
+        </div>
+
+        <button id="subscribeBtn" onclick="toggleSubscribe()" class="mt-2 bg-orange-600 text-white font-bold px-5 py-1.5 rounded-full text-xs transition shadow-sm">
+          Subscribe
+        </button>
+      </div>
+
+      <div id="profileVideosList" class="space-y-4 pt-2"></div>
+    </section>
+
+    <!-- 6. USER PERSONAL LIBRARY / MY PROFILE PAGE -->
+    <section id="pageLibrary" class="p-4 space-y-4 hidden">
+      <div class="p-2 border-b border-gray-100 pb-4">
+        <div class="w-20 h-20 rounded-full bg-orange-100 text-orange-800 border-2 border-orange-400 flex items-center justify-center text-3xl font-bold overflow-hidden mb-2">
+          <img id="userDpImg" src="" alt="DP" class="w-full h-full object-cover hidden">
+          <span id="userDpInitials"></span>
+        </div>
+        <h2 id="userNameText" class="text-xl font-bold text-gray-900"></h2>
+        <p id="userHandleText" class="text-xs text-gray-500"></p>
+
+        <div class="mt-3 flex items-center gap-2 text-xs font-semibold flex-wrap">
+          <span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full">👁️ <span id="userTotalViews">0</span> Views</span>
+          <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full">👥 <span id="userSubCount">0</span> Subs</span>
+        </div>
+
+        <button onclick="handleLogout()" class="mt-3 inline-block text-xs text-red-600 font-semibold hover:underline">
+          <span class="material-icons-outlined text-xs align-middle">logout</span> Logout
+        </button>
+      </div>
+
+      <div>
+        <h3 class="font-bold text-sm text-gray-800 mb-3" id="lblUploadedVideos">Aapke Uploaded Videos</h3>
+        <div id="userUploadedVideosList" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- 7. UPLOAD PAGE -->
+    <section id="pageUpload" class="p-4 hidden space-y-5">
+      <h2 class="font-bold text-lg text-gray-800" id="lblUploadHeading">Video Upload Karein</h2>
+      
+      <div class="flex border-b border-gray-200">
+        <button onclick="switchUploadTab('short')" id="tabBtnShort" class="flex-1 py-2 text-center text-xs font-bold border-b-2 border-orange-600 text-orange-600">Short Upload</button>
+        <button onclick="switchUploadTab('long')" id="tabBtnLong" class="flex-1 py-2 text-center text-xs font-bold border-b-2 border-transparent text-gray-500">Long Upload</button>
+        <button onclick="switchUploadTab('live')" id="tabBtnLive" class="flex-1 py-2 text-center text-xs font-bold border-b-2 border-transparent text-gray-500">Live Upload</button>
+      </div>
+
+      <form id="uploadForm" onsubmit="handleVideoUpload(event)" class="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+        <input type="hidden" id="uploadType" value="short">
+
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1" id="lblYtUrl">YouTube Video Link</label>
+          <input type="url" id="uploadUrl" placeholder="https://www.youtube.com/watch?v=..." required class="w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1" id="lblVideoName">Video Name</label>
+          <input type="text" id="uploadTitle" placeholder="Video ka title" required class="w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1" id="lblVideoDesc">Video Description</label>
+          <textarea id="uploadDesc" rows="3" placeholder="Video description..." required class="w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
+        </div>
+
+        <button type="submit" id="btnSubmitUpload" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl transition shadow text-sm">
+          Upload
+        </button>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- ==================== SPONSORED LINK MODAL ==================== -->
+  <div id="sponsorModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl border border-orange-100">
+      <h3 class="text-lg font-bold text-gray-900 mb-1" id="lblSponsorTitle">Prayojit Link</h3>
+      <p class="text-xs text-gray-600 mb-3 leading-relaxed" id="lblSponsorSub">
+        Sponsor link dekhne ke liye "Link Kholein" par click karein. <br>
+        <span class="font-bold text-orange-600" id="lbl4Clicks">4 click ke baad</span>, video chalega.
+      </p>
+
+      <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-xs font-mono text-gray-700 break-all mb-4">
+        🔗 https://omg10.com/4/11354962
+      </div>
+
+      <button onclick="handleSponsorClick()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5 text-sm mb-2">
+        <span class="material-icons-outlined text-sm">open_in_new</span>
+        <span><span id="lblOpenLink">Link Kholein</span> (<span id="clickCountText">0</span>/4)</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== VIDEO PLAYER MODAL ==================== -->
+  <div id="videoPlayerModal" class="fixed inset-0 bg-black/90 z-50 flex flex-col justify-center items-center p-4 hidden">
+    <div class="w-full max-w-md bg-gray-900 rounded-2xl overflow-hidden shadow-2xl border border-gray-800 relative">
+      <button onclick="closeVideoPlayerModal()" class="absolute top-2 right-2 z-10 bg-black/60 text-white rounded-full p-1 border border-white/20 hover:bg-red-600">
+        <span class="material-icons-outlined text-sm">close</span>
+      </button>
+      <div class="relative w-full pb-[56.25%] h-0 bg-black">
+        <iframe id="modalPlayerIframe" class="absolute top-0 left-0 w-full h-full" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+      </div>
+      <div class="p-4 text-white">
+        <h3 id="modalVideoTitle" class="font-bold text-base text-gray-100"></h3>
+        <p id="modalVideoUploader" class="text-xs text-orange-400 font-semibold mt-1"></p>
+        <p id="modalVideoDesc" class="text-xs text-gray-400 mt-2 line-clamp-2"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== BOTTOM NAVIGATION BAR ==================== -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-1.5 px-2 flex justify-around items-center text-center text-[10px] text-gray-600 z-40 max-w-md mx-auto">
+    <button onclick="navigateTo('home')" id="navHome" class="flex flex-col items-center text-orange-600">
+      <span class="material-icons-outlined">home</span>
+      <span id="navHomeText">ghar</span>
+    </button>
+    <button onclick="navigateTo('library')" id="navLibrary" class="flex flex-col items-center">
+      <span class="material-icons-outlined">format_list_bulleted</span>
+      <span id="navLibraryText">library</span>
+    </button>
+    <button onclick="navigateTo('upload', 'short')" id="navShortUpload" class="flex flex-col items-center">
+      <span class="material-icons-outlined">movie</span>
+      <span id="navShortUploadText">short upload</span>
+    </button>
+    <button onclick="navigateTo('upload', 'long')" id="navUpload" class="flex flex-col items-center">
+      <span class="material-icons-outlined">file_upload</span>
+      <span id="navUploadText">upload</span>
+    </button>
+    <button onclick="navigateTo('shorts')" id="navShorts" class="flex flex-col items-center">
+      <span class="material-icons-outlined text-red-600">video_library</span>
+      <span class="text-red-600 font-bold" id="navShortsText">shorts</span>
+    </button>
+  </nav>
+
+  <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+  <script>
+    let currentUser = null;
+    let registeredUsers = [];
+    let allVideos = [];
+    let currentPendingVideoId = null;
+    let currentSponsorClicks = 0;
+    let activeChannelView = null;
+    let subscriptions = [];
+    let deferredPrompt = null;
+    let base64DpImage = "";
+    let currentLang = "hi";
+
+    // LANGUAGE DICTIONARY
+    const translations = {
+      hi: {
+        loginTitle: "Videyo Login",
+        loginSub: "Naam, Password aur Gallery Photo se login karein",
+        selectDp: "Gallery se Profile Photo chunein:",
+        btnAuth: "Login / Sign Up",
+        installBtn: "Install App",
+        homeFeedTitle: "Home Feed (Long & Live)",
+        searchChannelsBtn: "👥 channel khojein",
+        homeSearchPh: "naam se video khojein...",
+        shortsSearchPh: "Shorts search karein...",
+        channelSearchPh: "Channel naam ya handle se khojein...",
+        uploadedVideos: "Aapke Uploaded Videos",
+        uploadHeading: "Video Upload Karein",
+        ytUrl: "YouTube Video Link",
+        videoName: "Video Name",
+        videoDesc: "Video Description",
+        btnUpload: "Upload",
+        sponsorTitle: "Prayojit Link",
+        sponsorSub: "Sponsor link dekhne ke liye 'Link Kholein' par click karein.",
+        clicksText: "4 click ke baad",
+        openLinkBtn: "Link Kholein",
+        back: "wapas",
+        subscribers: "subscribers",
+        totalViews: "total views",
+        videos: "videos",
+        navHome: "ghar",
+        navLibrary: "library",
+        navShortUpload: "short upload",
+        navUpload: "upload",
+        navShorts: "shorts",
+        subscribe: "Subscribe",
+        subscribed: "Subscribed ✓"
+      },
+      en: {
+        loginTitle: "Videyo Login",
+        loginSub: "Login using Name, Password & Gallery Photo",
+        selectDp: "Select Profile Photo from Gallery:",
+        btnAuth: "Login / Sign Up",
+        installBtn: "Install App",
+        homeFeedTitle: "Home Feed (Long & Live)",
+        searchChannelsBtn: "👥 Search Channels",
+        homeSearchPh: "search video by name...",
+        shortsSearchPh: "Search Shorts...",
+        channelSearchPh: "Search channel name or handle...",
+        uploadedVideos: "Your Uploaded Videos",
+        uploadHeading: "Upload Video",
+        ytUrl: "YouTube Video Link",
+        videoName: "Video Title",
+        videoDesc: "Video Description",
+        btnUpload: "Upload",
+        sponsorTitle: "Sponsored Link",
+        sponsorSub: "Click 'Open Link' to view sponsor link.",
+        clicksText: "After 4 clicks",
+        openLinkBtn: "Open Link",
+        back: "back",
+        subscribers: "subscribers",
+        totalViews: "total views",
+        videos: "videos",
+        navHome: "home",
+        navLibrary: "library",
+        navShortUpload: "short upload",
+        navUpload: "upload",
+        navShorts: "shorts",
+        subscribe: "Subscribe",
+        subscribed: "Subscribed ✓"
+      }
+    };
+
+    function changeLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('videyo_lang', lang);
+      const t = translations[lang];
+
+      document.getElementById('lblLoginTitle').innerText = t.loginTitle;
+      document.getElementById('lblLoginSub').innerText = t.loginSub;
+      document.getElementById('lblSelectDp').innerText = t.selectDp;
+      document.getElementById('btnAuthSubmit').innerText = t.btnAuth;
+      document.getElementById('lblInstallBtn').innerText = t.installBtn;
+      document.getElementById('lblHomeFeedTitle').innerText = t.homeFeedTitle;
+      document.getElementById('btnSearchChannels').innerText = t.searchChannelsBtn;
+      document.getElementById('homeSearchInput').placeholder = t.homeSearchPh;
+      document.getElementById('shortsSearchInput').placeholder = t.shortsSearchPh;
+      document.getElementById('channelSearchInput').placeholder = t.channelSearchPh;
+      document.getElementById('lblUploadedVideos').innerText = t.uploadedVideos;
+      document.getElementById('lblUploadHeading').innerText = t.uploadHeading;
+      document.getElementById('lblYtUrl').innerText = t.ytUrl;
+      document.getElementById('lblVideoName').innerText = t.videoName;
+      document.getElementById('lblVideoDesc').innerText = t.videoDesc;
+      document.getElementById('btnSubmitUpload').innerText = t.btnUpload;
+      document.getElementById('lblSponsorTitle').innerText = t.sponsorTitle;
+      document.getElementById('lbl4Clicks').innerText = t.clicksText;
+      document.getElementById('lblOpenLink').innerText = t.openLinkBtn;
+      document.getElementById('lblBack').innerText = t.back;
+      document.getElementById('lblSubscribers').innerText = t.subscribers;
+      document.getElementById('lblTotalViews').innerText = t.totalViews;
+      document.getElementById('lblVideos').innerText = t.videos;
+
+      document.getElementById('navHomeText').innerText = t.navHome;
+      document.getElementById('navLibraryText').innerText = t.navLibrary;
+      document.getElementById('navShortUploadText').innerText = t.navShortUpload;
+      document.getElementById('navUploadText').innerText = t.navUpload;
+      document.getElementById('navShortsText').innerText = t.navShorts;
+
+      updateSubscribeButton();
+    }
+
+    // 1. DYNAMIC PWA MANIFEST
+    const manifestData = {
+      "name": "Videyo Web App",
+      "short_name": "Videyo",
+      "start_url": ".",
+      "display": "standalone",
+      "background_color": "#ffffff",
+      "theme_color": "#ea580c",
+      "icons": [
+        {
+          "src": "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(manifestData)], {type: 'application/json'});
+    document.getElementById('pwaManifest').setAttribute('href', URL.createObjectURL(blob));
+
+    // LISTEN FOR APP INSTALL PROMPT
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('installAppBtn');
+      if (btn) btn.classList.remove('hidden');
+    });
+
+    function installPwaApp() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((res) => {
+          if (res.outcome === 'accepted') document.getElementById('installAppBtn').classList.add('hidden');
+          deferredPrompt = null;
+        });
+      } else {
+        alert(currentLang === 'hi' ? "Browser menu (⋮) par jaakar 'Add to Home Screen' par click karein." : "Open browser menu (⋮) and tap 'Add to Home Screen'.");
+      }
+    }
+
+    // GALLERY FILE TO BASE64
+    function handleDpUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          base64DpImage = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // DEFAULT 17 VIDEOS DATASET
+    const initialDefaultVideos = [
+      { id: "v1", type: "long", title: "Ek Piece Maal - Pawan Singh", desc: "Comedy & Music", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Raviranjan", views: 3, likes: 2, poster: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500" },
+      { id: "v2", type: "long", title: "1990 Old Hindi Songs Collection", desc: "Classic Old Songs", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Amar kumar", views: 120, likes: 10, poster: "" },
+      { id: "v3", type: "live", title: "Ved Entertainment Live Streaming", desc: "Live music event", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Raviranjan", views: 80, likes: 5, poster: "" },
+      { id: "v4", type: "long", title: "Bhojpuri Superhit Dhamaka 2026", desc: "New Hit Track", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Raviranjan", views: 45, likes: 4, poster: "" },
+      { id: "v5", type: "long", title: "Tech Unboxing & First Look", desc: "Latest Smartphone", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Amar kumar", views: 95, likes: 12, poster: "" },
+      { id: "v6", type: "live", title: "Gaming Stream Live Non-Stop", desc: "Battleground Live", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Priya Sharma", views: 210, likes: 30, poster: "" },
+      { id: "v7", type: "long", title: "Full Village Cooking Special", desc: "Traditional Dish", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Priya Sharma", views: 60, likes: 8, poster: "" },
+      { id: "v8", type: "long", title: "Top 10 Places To Visit In Bihar", desc: "Travel Vlog", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Raviranjan", views: 150, likes: 18, poster: "" },
+      { id: "v9", type: "live", title: "Morning Yoga & Meditation Live", desc: "Health & Fitness", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Priya Sharma", views: 40, likes: 3, poster: "" },
+
+      { id: "s1", type: "short", title: "Etv Stunt Bike", desc: "Short video 1", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Amar kumar", views: 35, likes: 1, poster: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=300" },
+      { id: "s2", type: "short", title: "Quad Bike Action", desc: "Quad bike stunt", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Raviranjan", views: 26, likes: 0, poster: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=300" },
+      { id: "s3", type: "short", title: "Cool Pose Shot", desc: "Portrait shot", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Priya Sharma", views: 12, likes: 3, poster: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300" },
+      { id: "s4", type: "short", title: "Circuit Board DIY", desc: "DIY Electronics", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Amar kumar", views: 40, likes: 5, poster: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=300" },
+      { id: "s5", type: "short", title: "Fast Car Drift", desc: "Car Drift", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Raviranjan", views: 88, likes: 14, poster: "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=300" },
+      { id: "s6", type: "short", title: "Dance Challenge Viral", desc: "Short Dance", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Priya Sharma", views: 130, likes: 25, poster: "https://images.unsplash.com/photo-1547153760-18fc86324498?w=300" },
+      { id: "s7", type: "short", title: "Funny Pet Moments", desc: "Cat Video", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Amar kumar", views: 72, likes: 9, poster: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=300" },
+      { id: "s8", type: "short", title: "Street Food Magic", desc: "Street Food", url: "https://www.youtube.com/embed/dQw4w9WgXcQ", uploader: "Raviranjan", views: 99, likes: 16, poster: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300" }
+    ];
+
+    window.onload = function() {
+      const savedLang = localStorage.getItem('videyo_lang') || 'hi';
+      document.getElementById('langSelect').value = savedLang;
+      changeLanguage(savedLang);
+
+      const savedUser = localStorage.getItem('videyo_user');
+      if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        document.getElementById('authScreen').classList.add('hidden');
+      }
+
+      const savedSubs = localStorage.getItem('videyo_subscriptions');
+      if (savedSubs) subscriptions = JSON.parse(savedSubs);
+
+      const savedUsersList = localStorage.getItem('videyo_all_users');
+      if (savedUsersList) {
+        registeredUsers = JSON.parse(savedUsersList);
+      } else {
+        registeredUsers = [
+          { name: "Raviranjan", handle: "@raviranjan", dp: "", subs: 0 },
+          { name: "Amar kumar", handle: "@amarkumar", dp: "", subs: 12 },
+          { name: "Priya Sharma", handle: "@priyasharma", dp: "", subs: 15 }
+        ];
+        localStorage.setItem('videyo_all_users', JSON.stringify(registeredUsers));
+      }
+
+      const savedVideos = localStorage.getItem('videyo_videos');
+      if (savedVideos) {
+        allVideos = JSON.parse(savedVideos);
+      } else {
+        allVideos = initialDefaultVideos;
+        localStorage.setItem('videyo_videos', JSON.stringify(allVideos));
+      }
+
+      renderHomePage();
+      renderShortsGrid();
+      updateLibraryPage();
+    };
+
+    function cleanYoutubeUrl(url) {
+      if (url.includes('embed')) return url;
+      let videoId = '';
+      if (url.includes('v=')) videoId = url.split('v=')[1].split('&')[0];
+      else if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1].split('?')[0];
+      else if (url.includes('shorts/')) videoId = url.split('shorts/')[1].split('?')[0];
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const name = document.getElementById('loginName').value.trim();
+
+      currentUser = {
+        name: name,
+        handle: '@' + name.toLowerCase().replace(/\s+/g, ''),
+        dp: base64DpImage,
+        subs: 0
+      };
+
+      localStorage.setItem('videyo_user', JSON.stringify(currentUser));
+
+      const existingIndex = registeredUsers.findIndex(u => u.name.toLowerCase() === name.toLowerCase());
+      if (existingIndex === -1) {
+        registeredUsers.push(currentUser);
+      } else {
+        registeredUsers[existingIndex] = currentUser;
+      }
+      localStorage.setItem('videyo_all_users', JSON.stringify(registeredUsers));
+
+      document.getElementById('authScreen').classList.add('hidden');
+      updateLibraryPage();
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('videyo_user');
+      currentUser = null;
+      document.getElementById('authScreen').classList.remove('hidden');
+    }
+
+    function navigateTo(page, subType = 'short') {
+      ['Home', 'Shorts', 'ChannelSearch', 'ChannelProfile', 'Library', 'Upload'].forEach(p => document.getElementById('page' + p).classList.add('hidden'));
+      document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('text-orange-600'));
+
+      if (page === 'home') {
+        document.getElementById('pageHome').classList.remove('hidden');
+        document.getElementById('navHome').classList.add('text-orange-600');
+        renderHomePage();
+      } else if (page === 'shorts') {
+        document.getElementById('pageShorts').classList.remove('hidden');
+        document.getElementById('navShorts').classList.add('text-orange-600');
+        renderShortsGrid();
+      } else if (page === 'channels') {
+        document.getElementById('pageChannelSearch').classList.remove('hidden');
+        searchChannels();
+      } else if (page === 'library') {
+        document.getElementById('pageLibrary').classList.remove('hidden');
+        document.getElementById('navLibrary').classList.add('text-orange-600');
+        updateLibraryPage();
+      } else if (page === 'upload') {
+        document.getElementById('pageUpload').classList.remove('hidden');
+        document.getElementById(subType === 'short' ? 'navShortUpload' : 'navUpload').classList.add('text-orange-600');
+        switchUploadTab(subType);
+      }
+    }
+
+    function switchUploadTab(type) {
+      document.getElementById('uploadType').value = type;
+      ['Short', 'Long', 'Live'].forEach(t => {
+        const btn = document.getElementById('tabBtn' + t);
+        btn.className = (t.toLowerCase() === type) 
+          ? "flex-1 py-2 text-center text-xs font-bold border-b-2 border-orange-600 text-orange-600"
+          : "flex-1 py-2 text-center text-xs font-bold border-b-2 border-transparent text-gray-500";
+      });
+    }
+
+    function handleVideoUpload(e) {
+      e.preventDefault();
+      if (!currentUser) return alert("Pehle login karein!");
+
+      const type = document.getElementById('uploadType').value;
+      const newVideo = {
+        id: "v_" + Date.now(),
+        type: type,
+        title: document.getElementById('uploadTitle').value,
+        desc: document.getElementById('uploadDesc').value,
+        url: cleanYoutubeUrl(document.getElementById('uploadUrl').value),
+        uploader: currentUser.name,
+        views: 0,
+        likes: 0,
+        poster: "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=500"
+      };
+
+      allVideos.unshift(newVideo);
+      localStorage.setItem('videyo_videos', JSON.stringify(allVideos));
+      alert(currentLang === 'hi' ? "Video upload ho gaya!" : "Video uploaded successfully!");
+      document.getElementById('uploadForm').reset();
+
+      updateLibraryPage();
+      navigateTo(type === 'short' ? 'shorts' : 'home');
+    }
+
+    function renderHomePage() {
+      const container = document.getElementById('homeVideoList');
+      container.innerHTML = "";
+      const homeVideos = allVideos.filter(v => v.type === 'long' || v.type === 'live');
+
+      homeVideos.forEach(v => {
+        const card = document.createElement('div');
+        card.className = "bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm";
+        card.innerHTML = `
+          <div class="relative bg-gray-900 h-48 flex items-center justify-center cursor-pointer overflow-hidden" onclick="triggerVideoPlay('${v.id}')">
+            ${v.poster ? `<img src="${v.poster}" class="w-full h-full object-cover">` : ''}
+            <span class="material-icons-outlined text-white text-5xl opacity-90 absolute">play_circle_filled</span>
+            <span class="absolute top-2 right-2 bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">${v.type}</span>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-gray-900">${v.title}</h3>
+            <p class="text-xs text-gray-500 mt-0.5">${v.desc}</p>
+            <div class="flex justify-between items-center text-xs text-gray-500 mt-3 border-t pt-2">
+              <span class="cursor-pointer font-semibold text-gray-700 hover:text-orange-600" onclick="openChannelProfile('${v.uploader}')">👤 ${v.uploader}</span>
+              <span>👁️ <strong id="views-${v.id}">${v.views}</strong> views</span>
+              <button onclick="shareVideo('${v.id}')" class="flex items-center gap-1 text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded-lg">
+                <span class="material-icons-outlined text-xs">share</span> Share
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function renderShortsGrid() {
+      const container = document.getElementById('shortsGridList');
+      container.innerHTML = "";
+      const shorts = allVideos.filter(v => v.type === 'short');
+
+      shorts.forEach((s, idx) => {
+        const card = document.createElement('div');
+        card.className = "bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between cursor-pointer";
+        card.innerHTML = `
+          <div class="relative bg-gray-200 h-56 overflow-hidden" onclick="openFullscreenShortsPlayer(${idx})">
+            <img src="${s.poster || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=300'}" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+              <span class="material-icons-outlined text-white text-4xl opacity-80">play_circle_filled</span>
+            </div>
+          </div>
+          <div class="p-2.5">
+            <h4 class="font-bold text-sm text-gray-800 truncate">${s.title}</h4>
+            <p onclick="openChannelProfile('${s.uploader}')" class="text-[11px] text-orange-600 truncate hover:underline mt-0.5">👤 ${s.uploader}</p>
+            <div class="flex items-center justify-between text-[11px] text-gray-500 mt-1">
+              <span>👁 <strong id="views-${s.id}">${s.views}</strong></span>
+              <span>👍 ${s.likes || 0}</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function openFullscreenShortsPlayer(startIndex = 0) {
+      document.getElementById('pageShortsPlayer').classList.remove('hidden');
+      renderShortsScrollFeed(startIndex);
+      const shorts = allVideos.filter(v => v.type === 'short');
+      if (shorts[startIndex]) triggerVideoPlay(shorts[startIndex].id);
+    }
+
+    function closeShortsPlayer() {
+      document.getElementById('pageShortsPlayer').classList.add('hidden');
+    }
+
+    function renderShortsScrollFeed(startIndex = 0) {
+      const feed = document.getElementById('shortsScrollFeed');
+      feed.innerHTML = "";
+      const shorts = allVideos.filter(v => v.type === 'short');
+
+      shorts.forEach((s, index) => {
+        const shortCard = document.createElement('div');
+        shortCard.className = "short-card relative bg-black flex flex-col justify-end p-4 text-white border-b border-gray-800";
+        
+        shortCard.innerHTML = `
+          <iframe src="${s.url}?autoplay=0" class="absolute inset-0 w-full h-full object-cover opacity-80" frameborder="0" allowfullscreen></iframe>
+          <div class="relative z-10 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 rounded-b-2xl">
+            <span class="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Short #${index+1}</span>
+            <h3 class="font-bold text-base mt-1">${s.title}</h3>
+            <p onclick="closeShortsPlayer(); openChannelProfile('${s.uploader}');" class="text-xs text-orange-400 font-semibold mt-1 cursor-pointer hover:underline">
+              👤 ${s.uploader} • 👁️ ${s.views} views
+            </p>
+            
+            <div class="flex items-center gap-4 mt-3">
+              <button onclick="likeVideo('${s.id}')" class="flex items-center gap-1 bg-white/20 px-3 py-1.5 rounded-full text-xs backdrop-blur-md">
+                <span>👍</span> <span>${s.likes || 0}</span>
+              </button>
+              <button onclick="shareVideo('${s.id}')" class="flex items-center gap-1 bg-orange-600 px-3 py-1.5 rounded-full text-xs font-bold shadow">
+                <span class="material-icons-outlined text-xs">share</span> Share
+              </button>
+            </div>
+          </div>
+        `;
+        feed.appendChild(shortCard);
+      });
+    }
+
+    function searchChannels() {
+      const query = document.getElementById('channelSearchInput').value.toLowerCase();
+      const container = document.getElementById('channelsListContainer');
+      container.innerHTML = "";
+
+      registeredUsers.forEach(u => {
+        if (u.name.toLowerCase().includes(query) || u.handle.toLowerCase().includes(query)) {
+          const userVids = allVideos.filter(v => v.uploader === u.name);
+          const totalViews = userVids.reduce((sum, v) => sum + v.views, 0);
+
+          const card = document.createElement('div');
+          card.className = "flex items-center justify-between bg-white p-3 rounded-2xl border border-gray-100 shadow-sm cursor-pointer hover:bg-orange-50/50 transition";
+          card.onclick = () => openChannelProfile(u.name);
+
+          card.innerHTML = `
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 rounded-full bg-red-100 text-gray-700 font-bold flex items-center justify-center text-base border border-red-200 overflow-hidden">
+                ${u.dp ? `<img src="${u.dp}" class="w-full h-full object-cover">` : u.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 class="font-bold text-sm text-gray-900">${u.name}</h3>
+                <p class="text-[11px] text-gray-400">${u.handle}</p>
+                <p class="text-xs text-gray-500 mt-0.5">👁️ ${totalViews} views | 👥 ${u.subs || 0} subs</p>
+              </div>
+            </div>
+            <span class="material-icons-outlined text-gray-400">chevron_right</span>
+          `;
+          container.appendChild(card);
+        }
+      });
+    }
+
+    function openChannelProfile(uploaderName) {
+      const targetUser = registeredUsers.find(u => u.name === uploaderName) || { 
+        name: uploaderName, 
+        handle: '@' + uploaderName.toLowerCase().replace(/\s+/g, ''), 
+        dp: '', 
+        subs: 0 
+      };
+      
+      activeChannelView = targetUser;
+
+      ['Home', 'Shorts', 'ChannelSearch', 'Library', 'Upload'].forEach(p => document.getElementById('page' + p).classList.add('hidden'));
+      document.getElementById('pageChannelProfile').classList.remove('hidden');
+
+      document.getElementById('profileNameText').innerText = targetUser.name;
+      document.getElementById('profileHandleText').innerText = targetUser.handle;
+
+      const dpImg = document.getElementById('profileDpImg');
+      const dpInitials = document.getElementById('profileDpInitials');
+
+      if (targetUser.dp) {
+        dpImg.src = targetUser.dp;
+        dpImg.classList.remove('hidden');
+        dpInitials.classList.add('hidden');
+      } else {
+        dpImg.classList.add('hidden');
+        dpInitials.innerText = targetUser.name.charAt(0).toUpperCase();
+        dpInitials.classList.remove('hidden');
+      }
+
+      const userVids = allVideos.filter(v => v.uploader === targetUser.name);
+      const totalViews = userVids.reduce((sum, v) => sum + v.views, 0);
+
+      document.getElementById('profileTotalViews').innerText = totalViews;
+      document.getElementById('profileSubCount').innerText = targetUser.subs || 0;
+      document.getElementById('profileVideoCount').innerText = userVids.length;
+
+      updateSubscribeButton();
+      renderChannelProfileVideos(userVids);
+    }
+
+    function renderChannelProfileVideos(videosList) {
+      const listContainer = document.getElementById('profileVideosList');
+      listContainer.innerHTML = "";
+
+      if (videosList.length === 0) {
+        listContainer.innerHTML = `<p class="text-center text-xs text-gray-400 py-6">No videos found.</p>`;
+        return;
+      }
+
+      videosList.forEach(v => {
+        const item = document.createElement('div');
+        item.className = "bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm";
+        item.innerHTML = `
+          <div class="relative bg-gray-900 h-48 flex items-center justify-center cursor-pointer" onclick="triggerVideoPlay('${v.id}')">
+            ${v.poster ? `<img src="${v.poster}" class="w-full h-full object-cover">` : ''}
+            <span class="material-icons-outlined text-white text-5xl opacity-90 absolute">play_circle_filled</span>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-sm text-gray-900">${v.title}</h3>
+            <p class="text-xs text-gray-500 mt-1">👁️ <span id="views-${v.id}">${v.views}</span> views</p>
+          </div>
+        `;
+        listContainer.appendChild(item);
+      });
+    }
+
+    function toggleSubscribe() {
+      if (!activeChannelView) return;
+      const index = subscriptions.indexOf(activeChannelView.name);
+      if (index === -1) {
+        subscriptions.push(activeChannelView.name);
+        activeChannelView.subs = (activeChannelView.subs || 0) + 1;
+      } else {
+        subscriptions.splice(index, 1);
+        activeChannelView.subs = Math.max(0, (activeChannelView.subs || 1) - 1);
+      }
+
+      document.getElementById('profileSubCount').innerText = activeChannelView.subs;
+      localStorage.setItem('videyo_subscriptions', JSON.stringify(subscriptions));
+      localStorage.setItem('videyo_all_users', JSON.stringify(registeredUsers));
+      updateSubscribeButton();
+    }
+
+    function updateSubscribeButton() {
+      const btn = document.getElementById('subscribeBtn');
+      if (!activeChannelView || !btn) return;
+
+      const t = translations[currentLang];
+      if (subscriptions.includes(activeChannelView.name)) {
+        btn.innerText = t.subscribed;
+        btn.className = "mt-2 bg-gray-200 text-gray-700 font-bold px-5 py-1.5 rounded-full text-xs transition shadow-sm";
+      } else {
+        btn.innerText = t.subscribe;
+        btn.className = "mt-2 bg-orange-600 text-white font-bold px-5 py-1.5 rounded-full text-xs transition shadow-sm";
+      }
+    }
+
+    function updateLibraryPage() {
+      if (!currentUser) return;
+      document.getElementById('userNameText').innerText = currentUser.name;
+      document.getElementById('userHandleText').innerText = currentUser.handle;
+
+      const dpImg = document.getElementById('userDpImg');
+      const dpInitials = document.getElementById('userDpInitials');
+
+      if (currentUser.dp) {
+        dpImg.src = currentUser.dp;
+        dpImg.classList.remove('hidden');
+        dpInitials.classList.add('hidden');
+      } else {
+        dpImg.classList.add('hidden');
+        dpInitials.innerText = currentUser.name.charAt(0).toUpperCase();
+        dpInitials.classList.remove('hidden');
+      }
+
+      const userVids = allVideos.filter(v => v.uploader === currentUser.name);
+      const totalViews = userVids.reduce((sum, v) => sum + v.views, 0);
+
+      document.getElementById('userTotalViews').innerText = totalViews;
+      document.getElementById('userSubCount').innerText = currentUser.subs || 0;
+
+      renderLibraryVideos(userVids);
+    }
+
+    function renderLibraryVideos(videosList) {
+      const listContainer = document.getElementById('userUploadedVideosList');
+      listContainer.innerHTML = "";
+
+      if (videosList.length === 0) {
+        listContainer.innerHTML = `<p class="text-center text-xs text-gray-400 py-4">No uploaded videos.</p>`;
+        return;
+      }
+
+      videosList.forEach(v => {
+        const item = document.createElement('div');
+        item.className = "flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs";
+        item.innerHTML = `
+          <div>
+            <p class="font-bold text-gray-800">${v.title}</p>
+            <span class="text-[10px] text-gray-500 uppercase">${v.type}</span>
+          </div>
+          <span class="text-orange-600 font-bold">👁️ ${v.views} views</span>
+        `;
+        listContainer.appendChild(item);
+      });
+    }
+
+    function triggerVideoPlay(videoId) {
+      currentPendingVideoId = videoId;
+      currentSponsorClicks = 0;
+      document.getElementById('clickCountText').innerText = 0;
+      document.getElementById('sponsorModal').classList.remove('hidden');
+    }
+
+    function handleSponsorClick() {
+      currentSponsorClicks++;
+      document.getElementById('clickCountText').innerText = currentSponsorClicks;
+      window.open('https://omg10.com/4/11354962', '_blank');
+
+      if (currentSponsorClicks >= 4) {
+        document.getElementById('sponsorModal').classList.add('hidden');
+        if (currentPendingVideoId) {
+          incrementVideoView(currentPendingVideoId);
+          startInAppVideoPlayer(currentPendingVideoId);
+        }
+      }
+    }
+
+    function startInAppVideoPlayer(videoId) {
+      const vid = allVideos.find(v => v.id === videoId);
+      if (!vid) return;
+
+      document.getElementById('modalVideoTitle').innerText = vid.title;
+      document.getElementById('modalVideoUploader').innerText = `👤 ${vid.uploader}`;
+      document.getElementById('modalVideoDesc').innerText = vid.desc;
+      document.getElementById('modalPlayerIframe').src = `${vid.url}?autoplay=1`;
+      document.getElementById('videoPlayerModal').classList.remove('hidden');
+    }
+
+    function closeVideoPlayerModal() {
+      document.getElementById('modalPlayerIframe').src = '';
+      document.getElementById('videoPlayerModal').classList.add('hidden');
+    }
+
+    function incrementVideoView(videoId) {
+      const vid = allVideos.find(v => v.id === videoId);
+      if (vid) {
+        vid.views += 1;
+        localStorage.setItem('videyo_videos', JSON.stringify(allVideos));
+        
+        const elements = document.querySelectorAll(`#views-${videoId}`);
+        elements.forEach(el => el.innerText = vid.views);
+
+        if (activeChannelView) openChannelProfile(activeChannelView.name);
+        updateLibraryPage();
+      }
+    }
+
+    function likeVideo(videoId) {
+      const vid = allVideos.find(v => v.id === videoId);
+      if (vid) {
+        vid.likes = (vid.likes || 0) + 1;
+        localStorage.setItem('videyo_videos', JSON.stringify(allVideos));
+        renderShortsGrid();
+      }
+    }
+
+    function shareVideo(videoId) {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert("Video link copied!");
+      }).catch(() => {
+        prompt("Copy link:", shareUrl);
+      });
+    }
+
+    function filterHomeVideos() {
+      const query = document.getElementById('homeSearchInput').value.toLowerCase();
+      const cards = document.getElementById('homeVideoList').children;
+      Array.from(cards).forEach(card => {
+        card.style.display = card.innerText.toLowerCase().includes(query) ? 'block' : 'none';
+      });
+    }
+
+    function filterShortsGrid() {
+      const query = document.getElementById('shortsSearchInput').value.toLowerCase();
+      const cards = document.getElementById('shortsGridList').children;
+      Array.from(cards).forEach(card => {
+        card.style.display = card.innerText.toLowerCase().includes(query) ? 'flex' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title></title>
+</head>
+
+<body>
+  
+</body>
+
+</html>
